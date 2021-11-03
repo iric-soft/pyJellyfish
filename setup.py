@@ -11,31 +11,47 @@ import os
 import sys
 
 
-def spawn(cmd, search_path, dry_run, cwd, env):
-    """A wrapper around distutils.spawn with cwd and env
-    enabled. Uses multiprocessing to edit os.environ and for
-    calling os.chdir() to avoid chaging global variables.
-    """
+class SuperCommand(Command):
+    def spawn(self, cmd, search_path=1, cwd=None, env=None):
+        """Override spawn because we want flexible cwd and env
+        functionalities. An alternative would have been to copy
+        distutils.spawn and make slight edits for adjusting
+        cwd and env arguments directly in Popen. The current
+        method was chosen to reduce the number of lines in this
+        file.
+        """
 
-    from concurrent.futures import ProcessPoolExecutor
-    ex = ProcessPoolExecutor(max_workers=1)
-    p = ex.submit(_spawn, cmd, search_path, dry_run, cwd, env, os.getpid())
-    p.result()
-    ex.shutdown()
-
-
-def _spawn(cmd, search_path, dry_run, cwd, env, main_pid):
-    """this function is only meant to be run inside a new process"""
-    import distutils.spawn
-    assert os.getpid() != main_pid
-    if env is not None:
-        os.environ = dict(os.environ, **env)
-    if cwd is not None:
-        os.chdir(cwd)
-    distutils.spawn.spawn(cmd, search_path, dry_run=dry_run)
+        self.spawn_multiprocess(cmd, search_path, self.dry_run, cwd, env)
 
 
-class JellyfishCommand(Command):
+    @classmethod
+    def spawn_multiprocess(cls, cmd, search_path, dry_run, cwd, env):
+        """A wrapper around distutils.spawn with cwd and env
+        enabled. Uses multiprocessing to edit os.environ and for
+        calling os.chdir() to avoid chaging global variables.
+        """
+
+        from concurrent.futures import ProcessPoolExecutor
+        ex = ProcessPoolExecutor(max_workers=1)
+        p = ex.submit(cls._spawn, cmd, search_path, dry_run, cwd, env, os.getpid())
+        p.result()
+        ex.shutdown()
+
+
+    @staticmethod
+    def _spawn(cmd, search_path, dry_run, cwd, env, main_pid):
+        """This function is only meant to be run inside a new process"""
+
+        import distutils.spawn
+        assert os.getpid() != main_pid
+        if env is not None:
+            os.environ = dict(os.environ, **env)
+        if cwd is not None:
+            os.chdir(cwd)
+        distutils.spawn.spawn(cmd, search_path, dry_run=dry_run)
+
+
+class JellyfishCommand(SuperCommand):
     """ Custom Jellyfish commands for compiling jellyfish. """
 
     description = 'build and install jellyfish in default libpath'
@@ -45,8 +61,10 @@ class JellyfishCommand(Command):
          'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)')
     ]
 
+
     def initialize_options(self):
         self.version = None
+
 
     def finalize_options(self):
         if self.version:
@@ -57,6 +75,7 @@ class JellyfishCommand(Command):
                     )
         else:
             self.version = '2.3.0'
+
 
     def run(self):
         self.announce(
@@ -131,17 +150,6 @@ class JellyfishCommand(Command):
             level=log.INFO
         )
 
-    def spawn(self, cmd, search_path=1, cwd=None, env=None):
-        """Override spawn because we want flexible cwd and env
-        functionalities. An alternative would have been to copy
-        distutils.spawn and make slight edits for adjusting
-        cwd and env arguments directly in Popen. The current
-        method was chosen to reduce the number of lines in this
-        file.
-        """
-
-        spawn(cmd, search_path, self.dry_run, cwd, env)
-
 
 # Ideally, this class would be a Singleton, but that would be
 # unnecessary for our purposes here.  A great Singleton implementation
@@ -159,6 +167,7 @@ class ClassFactory(object):
         return self.classes[name]
 
     def create(self, parents):
+
         class CustomCommand(*parents):
             """Custom setuptools.command command."""
 

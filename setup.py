@@ -13,8 +13,8 @@ import sys
 
 def spawn(cmd, search_path, dry_run, cwd, env):
     """A wrapper around distutils.spawn with cwd and env
-    enabled. Uses multiprocessing to edit os.environ and for 
-    calling os.chdir() without any headaches.
+    enabled. Uses multiprocessing to edit os.environ and for
+    calling os.chdir() to avoid chaging global variables.
     """
 
     from concurrent.futures import ProcessPoolExecutor
@@ -143,43 +143,62 @@ class JellyfishCommand(Command):
         spawn(cmd, search_path, self.dry_run, cwd, env)
 
 
-class CustomCommand(type):
-    """Custom setuptools.command command."""
+# Ideally, this class would be a Singleton, but that would be
+# unnecessary for our purposes here.  A great Singleton implementation
+# can be found here: https://stackoverflow.com/a/7346105/16653409
+#@Singleton
+class ClassFactory(object):
+    def __init__(self):
+        self.classes = {}
 
-    def __new__(cls, clsname, bases, attr):
-        attr['run'] = cls.run
-        attr['has_absent_jellyfish'] = cls.has_absent_jellyfish
-        attr['expand_sub_commands'] = cls.expand_sub_commands 
-        attr['add_sub_cmd'] = cls.add_sub_cmd
-        return super(CustomCommand, cls).__new__(cls, clsname, bases, attr)
+    def __call__(self, *parents):
+        name = ':'.join([p.__name__ for p in parents])
+        if name not in self.classes:
+            new_class = self.create(parents)
+            self.classes[name] = new_class
+        return self.classes[name]
 
-    def run(self):
-        self.expand_sub_commands()
-        for cmd_name in self.get_sub_commands():
-            self.run_command(cmd_name)
-        super(self.__class__, self).run()
+    def create(self, parents):
+        class CustomCommand(*parents):
+            """Custom setuptools.command command."""
 
-    def has_absent_jellyfish(self):
-        """Returns true if jellyfish is not installed."""
-        try:
-            import dna_jellyfish
-            return False
-        except ModuleNotFoundError:
-            return True
+            def run(self):
+                self.expand_sub_commands()
+                for cmd_name in self.get_sub_commands():
+                    self.run_command(cmd_name)
+                super(CustomCommand, self).run()
 
-    def expand_sub_commands(self):
-        if self.add_sub_cmd not in self.sub_commands:
-            self.sub_commands.insert(0, self.add_sub_cmd)
+            def has_absent_jellyfish(self):
+                """Returns true if jellyfish is not installed."""
+                try:
+                    import dna_jellyfish
+                    return False
+                except ModuleNotFoundError:
+                    return True
 
-    add_sub_cmd = ('jellyfish', has_absent_jellyfish)
+            def expand_sub_commands(self):
+                if self.add_sub_cmd not in self.sub_commands:
+                    self.sub_commands.insert(0, self.add_sub_cmd)
+
+            add_sub_cmd = ('jellyfish', has_absent_jellyfish)
+
+        return CustomCommand
 
 
-class BuildPyCommand(build_py, metaclass=CustomCommand):
+factory = ClassFactory()  #.instance()  # ClassFactory is a singleton
+
+def create_command_class(klass):
+    return factory(*klass.__bases__)
+
+
+@create_command_class
+class BuildPyCommand(build_py):
     """Custom build command."""
     pass
 
 
-class DevelopCommand(develop, metaclass=CustomCommand):
+@create_command_class
+class DevelopCommand(develop):
     """Custom develop command."""
     pass
 

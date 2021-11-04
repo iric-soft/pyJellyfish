@@ -15,7 +15,7 @@ import shutil
 
 
 class SuperCommand(Command):
-    def spawn(self, cmd, search_path=1, cwd=None, env=None):
+    def spawn(self, cmd, search_path=1, cwd=None):
         """Override spawn because we want flexible cwd and env
         functionalities. An alternative would have been to copy
         distutils.spawn and make slight edits for adjusting
@@ -24,31 +24,29 @@ class SuperCommand(Command):
         file.
         """
 
-        self.spawn_multiprocess(cmd, search_path, self.dry_run, cwd, env)
+        self.spawn_multiprocess(cmd, search_path, self.dry_run, cwd)
 
 
     @classmethod
-    def spawn_multiprocess(cls, cmd, search_path, dry_run, cwd, env):
-        """A wrapper around distutils.spawn with cwd and env
+    def spawn_multiprocess(cls, cmd, search_path, dry_run, cwd):
+        """A wrapper around distutils.spawn with custom cwd functionality
         enabled. Uses multiprocessing to edit os.environ and for
         calling os.chdir() to avoid chaging global variables.
         """
 
         from concurrent.futures import ProcessPoolExecutor
         ex = ProcessPoolExecutor(max_workers=1)
-        p = ex.submit(cls._spawn, cmd, search_path, dry_run, cwd, env, os.getpid())
+        p = ex.submit(cls._spawn, cmd, search_path, dry_run, cwd, os.getpid())
         p.result()
         ex.shutdown()
 
 
     @staticmethod
-    def _spawn(cmd, search_path, dry_run, cwd, env, main_pid):
+    def _spawn(cmd, search_path, dry_run, cwd, main_pid):
         """This function is only meant to be run inside a new process"""
 
         import distutils.spawn
         assert os.getpid() != main_pid
-        if env is not None:
-            os.environ = dict(os.environ, **env)
         if cwd is not None:
             os.chdir(cwd)
         distutils.spawn.spawn(cmd, search_path, dry_run=dry_run)
@@ -106,8 +104,6 @@ class JellyfishCommand(SuperCommand):
                 env_pkg_config_path
             )
 
-        dnajf_t = os.path.join(os.getcwd(), 'jfbuild/dnajf')
-
         commands = [
             partial(
                 self.spawn,
@@ -126,7 +122,9 @@ class JellyfishCommand(SuperCommand):
                 # --enable-python-binding will install jellyfish.py in addition
                 # to dna_jellyfish module without passing through pip which
                 # is messy and does not address the conflict with the other
-                # jellyfish Debian package
+                # jellyfish Debian package (in newer versions)
+                # Also adding --enable-python-binding by itself is not sufficient
+                # starting from version 2.2.7
                 cwd=os.path.join(build_dir, dir_name)
             ),
             partial(
@@ -140,11 +138,17 @@ class JellyfishCommand(SuperCommand):
                 cwd=os.path.join(build_dir, dir_name)
             ),
             partial(
-                # --enable-python-binding fails starting from version 2.2.7
                 self.spawn,
-                [sys.executable, '-m', 'pip', 'install', '.', '--target', dnajf_t, '--upgrade'],
-                cwd=os.path.join(build_dir, dir_name, 'swig', 'python'),
-                env=dict(PKG_CONFIG_PATH=_pkg_config_path)
+                [
+                    'env',
+                    'PKG_CONFIG_PATH=' + _pkg_config_path,
+                    sys.executable, '-m', 'pip',
+                    'install',
+                    '.',
+                    '--target', os.path.join(os.getcwd(), 'jfbuild/dnajf'),
+                    '--upgrade'
+                ],
+                cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
             )
         ]
 
@@ -202,7 +206,7 @@ class ClassFactory(object):
                 try:
                     import dna_jellyfish
                     return False
-                except ModuleNotFoundError:
+                except (ModuleNotFoundError, ImportError):
                     return True
 
             def expand_sub_commands(self):
@@ -214,7 +218,7 @@ class ClassFactory(object):
         return CustomCommand
 
 
-factory = ClassFactory()  #.instance()  # ClassFactory is a singleton
+factory = ClassFactory()
 
 def create_command_class(klass):
     return factory(*klass.__bases__)
@@ -246,7 +250,7 @@ classifiers = [
     'Topic :: Software Development',
     'Topic :: Software Development :: Build Tools',
 
-    'License :: OSI Approved :: MIT License',
+    'License :: OSI Approved :: BSD 3-clause License',
 
     'Programming Language :: Python :: 3.7',
 
@@ -261,7 +265,7 @@ metadata = dict(
     url='https://github.com/iric-soft/pyJellyfish',
     author='Albert Feghaly',
     author_email='bioinformatique@iric.ca',
-    license='MIT',
+    license='BSD',
     classifiers=classifiers,
     keywords='k-mer DNA',
     packages=find_packages(),

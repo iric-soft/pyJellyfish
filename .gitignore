@@ -25,3 +25,7 @@ var/
 
 # OS
 *.DS_Store
+
+# Package-specific
+jfbuild/
+dna_jellyfish.py

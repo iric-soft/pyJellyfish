@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
+from setuptools.command.build_ext import build_ext
 from distutils.cmd import Command
 from distutils import log
 from distutils.errors import DistutilsOptionError
 from functools import partial
+from glob import glob
 import os
 import sys
+import shutil
 
 
 class SuperCommand(Command):
@@ -56,10 +59,11 @@ class JellyfishCommand(SuperCommand):
 
     description = 'build and install jellyfish in default libpath'
 
-    user_options = [
-        ('version=', None,
-         'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)')
-    ]
+    user_options = [(
+            'version=',
+            None,
+            'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)'
+        )]
 
 
     def initialize_options(self):
@@ -83,7 +87,7 @@ class JellyfishCommand(SuperCommand):
             level=log.INFO
         )
 
-        self.mkpath('build_jf')
+        self.mkpath('jfbuild/jf')
 
         dir_name = 'jellyfish-%s' % self.version
         base_url = 'https://github.com/gmarcais/Jellyfish'
@@ -93,14 +97,16 @@ class JellyfishCommand(SuperCommand):
                 dir_name
             )
 
-        build_dir = os.path.abspath('build_jf')
-        prefix = os.path.normpath(sys.prefix)
+        build_dir = os.path.abspath('jfbuild/jf')
+        prefix = os.path.join(os.getcwd(), 'jfbuild/jf/jellyfish')
 
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
         _pkg_config_path = '%s/lib/pkgconfig:%s' % (
                 prefix,
                 env_pkg_config_path
             )
+
+        dnajf_t = os.path.join(os.getcwd(), 'jfbuild/dnajf')
 
         commands = [
             partial(
@@ -136,7 +142,7 @@ class JellyfishCommand(SuperCommand):
             partial(
                 # --enable-python-binding fails starting from version 2.2.7
                 self.spawn,
-                [sys.executable, '-m', 'pip', 'install', '.'],
+                [sys.executable, '-m', 'pip', 'install', '.', '--target', dnajf_t, '--upgrade'],
                 cwd=os.path.join(build_dir, dir_name, 'swig', 'python'),
                 env=dict(PKG_CONFIG_PATH=_pkg_config_path)
             )
@@ -145,10 +151,24 @@ class JellyfishCommand(SuperCommand):
         for cmd in commands:
             cmd()
 
+        ext_path = glob('jfbuild/dnajf/_dna_jellyfish*')
+        assert len(ext_path) == 1
+        ext_file = os.path.basename(ext_path[0])
+        shutil.copyfile('jfbuild/dnajf/dna_jellyfish.py', 'dna_jellyfish.py')
+        shutil.copyfile(os.path.join('jfbuild/dnajf', ext_file), ext_file)
+
         self.announce(
             '%s\nSuccessfully installed jellyfish\n%s' %('*'*40, '*'*40),
             level=log.INFO
         )
+
+
+class BuildExtCommand(build_ext):
+    def build_extension(self, ext):
+        ext_dest = self.get_ext_fullpath(ext.name)
+        self.mkpath(os.path.dirname(ext_dest))
+        ext_loc = os.path.join(os.getcwd(), os.path.basename(ext_dest))
+        shutil.copyfile(ext_loc, ext_dest)
 
 
 # Ideally, this class would be a Singleton, but that would be
@@ -245,10 +265,13 @@ metadata = dict(
     classifiers=classifiers,
     keywords='k-mer DNA',
     packages=find_packages(),
+    ext_modules=[Extension("_dna_jellyfish", sources=[])],
+    py_modules = ["dna_jellyfish"],
     python_requires='>=3.5',
     cmdclass={
         'jellyfish': JellyfishCommand,
         'build_py': BuildPyCommand,
+        'build_ext': BuildExtCommand,
         'develop': DevelopCommand
     }
 )

@@ -29,3 +29,5 @@ var/
 # Package-specific
 jfbuild/
 dna_jellyfish.py
+pyjellyfish/.libs/
+pyjellyfish/.dylibs/

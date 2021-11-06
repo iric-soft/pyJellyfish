@@ -7,11 +7,10 @@ from setuptools.command.build_ext import build_ext
 from distutils.cmd import Command
 from distutils import log
 from distutils.errors import DistutilsOptionError
-from functools import partial
 from glob import glob
 import os
 import sys
-import shutil
+import subprocess
 
 
 class SuperCommand(Command):
@@ -95,8 +94,8 @@ class JellyfishCommand(SuperCommand):
                 dir_name
             )
 
-        build_dir = os.path.abspath('jfbuild/jf')
-        prefix = os.path.join(os.getcwd(), 'jfbuild/jf/jellyfish')
+        build_dir = os.path.abspath('./jfbuild/jf')
+        prefix = os.path.abspath('./jfbuild/jf/jellyfish')
 
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
         _pkg_config_path = '%s/lib/pkgconfig:%s' % (
@@ -104,62 +103,143 @@ class JellyfishCommand(SuperCommand):
                 env_pkg_config_path
             )
 
-        commands = [
-            partial(
-                self.spawn,
-                ['curl', '-L', url, '--output', dir_name+'.tar.gz'],
-                cwd=build_dir
-            ),
-            partial(
-                self.spawn,
-                ['tar', 'xzvf', dir_name+'.tar.gz'],
-                cwd=build_dir
-            ),
-            partial(
-                self.spawn,
-                ['./configure', '--prefix', prefix],
-                #['./configure', '--prefix', prefix, '--enable-python-binding'],
-                # --enable-python-binding will install jellyfish.py in addition
-                # to dna_jellyfish module without passing through pip which
-                # is messy and does not address the conflict with the other
-                # jellyfish Debian package (in newer versions)
-                # Also adding --enable-python-binding by itself is not sufficient
-                # starting from version 2.2.7
-                cwd=os.path.join(build_dir, dir_name)
-            ),
-            partial(
-                self.spawn,
-                ['make', '-j', '8'],
-                cwd=os.path.join(build_dir, dir_name)
-            ),
-            partial(
-                self.spawn,
-                ['make', 'install'],
-                cwd=os.path.join(build_dir, dir_name)
-            ),
-            partial(
-                self.spawn,
+        def get_ext_name():
+            ext_path = glob('./jfbuild/dnajf/_dna_jellyfish*')
+            assert len(ext_path) == 1
+            ext_file = os.path.basename(ext_path[0])
+            return ext_file
+
+        def get_lib_name():
+            ext_file = get_ext_name()
+            if sys.platform == 'linux':
+                out = subprocess.check_output(['ldd', ext_file])
+                libs = [x for x in out.decode().split('\n') if 'libjellyfish' in x]
+                assert len(libs) == 1
+                lib = libs[0].strip().split(' ')[0]
+            elif sys.platform == 'darwin':
+                out = subprocess.check_output(['otool', '-L', ext_file])
+                libs = [x for x in out.decode().split('\n')[1:] if 'libjellyfish' in x]
+                assert len(libs) == 1
+                lib = os.path.basename(libs[0].strip().split(' ')[0])
+            return lib
+
+        self.spawn(
+            ['curl', '-L', url, '--output', dir_name+'.tar.gz'],
+            cwd=build_dir
+        )
+
+        self.spawn(
+            ['tar', 'xzvf', dir_name+'.tar.gz'],
+            cwd=build_dir
+        )
+
+        self.spawn(
+            ['./configure', '--prefix', prefix],
+            #['./configure', '--prefix', prefix, '--enable-python-binding'],
+            # --enable-python-binding will install jellyfish.py in addition
+            # to dna_jellyfish module without passing through pip which
+            # is messy and does not address the conflict with the other
+            # jellyfish Debian package (in newer versions)
+            # Also adding --enable-python-binding by itself is not sufficient
+            # starting from version 2.2.7
+            cwd=os.path.join(build_dir, dir_name)
+        )
+
+        self.spawn(
+            ['make', '-j', '8'],
+            cwd=os.path.join(build_dir, dir_name)
+        )
+
+        self.spawn(
+            ['make', 'install'],
+            cwd=os.path.join(build_dir, dir_name)
+        )
+
+        self.spawn(
+            [
+                'env',
+                'PKG_CONFIG_PATH=' + _pkg_config_path,
+                sys.executable, '-m', 'pip',
+                'install',
+                '.',
+                '--target', os.path.join(os.getcwd(), 'jfbuild/dnajf'),
+                '--upgrade'
+            ],
+            cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
+        )
+
+        self.copy_file(
+            './jfbuild/dnajf/dna_jellyfish.py',
+            './dna_jellyfish.py'
+        )
+
+        self.copy_file(
+            os.path.join('./jfbuild/dnajf', get_ext_name()),
+            os.path.join('.', get_ext_name())
+        )
+
+        if sys.platform == 'linux':
+            self.mkpath('jfbuild/patchelf/bin')
+            self.mkpath('pyjellyfish/.libs')
+
+            self.copy_file(
+                os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name()),
+                os.path.join('./pyjellyfish/.libs', get_lib_name())
+            )
+
+            self.spawn(
                 [
-                    'env',
-                    'PKG_CONFIG_PATH=' + _pkg_config_path,
                     sys.executable, '-m', 'pip',
                     'install',
-                    '.',
-                    '--target', os.path.join(os.getcwd(), 'jfbuild/dnajf'),
-                    '--upgrade'
-                ],
-                cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
+                    'patchelf-wrapper',
+                    '--target',
+                    os.path.abspath('./jfbuild/patchelf/lib/python3.7/site-packages'),
+                    '--upgrade',
+                    '--no-cache-dir',
+                    '--force'
+                ]
             )
-        ]
 
-        for cmd in commands:
-            cmd()
+            self.move_file(
+                os.path.join(os.path.dirname(sys.executable), 'patchelf'),
+                './jfbuild/patchelf/bin/'
+            )
 
-        ext_path = glob('jfbuild/dnajf/_dna_jellyfish*')
-        assert len(ext_path) == 1
-        ext_file = os.path.basename(ext_path[0])
-        shutil.copyfile('jfbuild/dnajf/dna_jellyfish.py', 'dna_jellyfish.py')
-        shutil.copyfile(os.path.join('jfbuild/dnajf', ext_file), ext_file)
+            self.spawn(
+                [
+                    './jfbuild/patchelf/bin/patchelf',
+                    '--set-rpath',
+                    '$ORIGIN/pyjellyfish/.libs',
+                    get_ext_name()
+                ]
+            )
+
+        elif sys.platform == 'darwin':
+            self.mkpath('pyjellyfish/.dylibs')
+
+            self.copy_file(
+                os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name()),
+                os.path.join('./pyjellyfish/.dylibs', get_lib_name())
+            )
+
+            self.spawn(
+                [
+                    'install_name_tool',
+                    '-change',
+                    os.path.abspath(os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name())),
+                    os.path.join('@loader_path/pyjellyfish/.dylibs', get_lib_name()),
+                    get_ext_name()
+                ]
+            )
+
+            self.spawn(
+                [
+                    'install_name_tool',
+                    '-id',
+                    os.path.join('/DLC/pyjellyfish/.dylibs', get_lib_name()),
+                    os.path.join('./pyjellyfish/.dylibs', get_lib_name())
+                ]
+            )
 
         self.announce(
             '%s\nSuccessfully installed jellyfish\n%s' %('*'*40, '*'*40),
@@ -172,7 +252,11 @@ class BuildExtCommand(build_ext):
         ext_dest = self.get_ext_fullpath(ext.name)
         self.mkpath(os.path.dirname(ext_dest))
         ext_loc = os.path.join(os.getcwd(), os.path.basename(ext_dest))
-        shutil.copyfile(ext_loc, ext_dest)
+        if os.path.isfile(ext_loc):
+            self.copy_file(ext_loc, ext_dest)
+        else:
+            raise DistutilsOptionError('Cannot find extension %s' % ext_loc)
+
 
 
 # Ideally, this class would be a Singleton, but that would be
@@ -268,7 +352,8 @@ metadata = dict(
     license='BSD',
     classifiers=classifiers,
     keywords='k-mer DNA',
-    packages=find_packages(),
+    packages=['pyjellyfish'],
+    package_data={'pyjellyfish': ['.libs/*']},
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.5',

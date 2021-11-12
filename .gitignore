@@ -30,3 +30,4 @@ var/
 jfbuild/
 dna_jellyfish.py
 pyjellyfish/.libs/
+pyjellyfish/.dylibs/

@@ -6,6 +6,7 @@ from setuptools.command.develop import develop
 from setuptools.command.build_ext import build_ext
 from distutils.cmd import Command
 from distutils import log
+from contextlib import contextmanager
 from distutils.errors import DistutilsOptionError
 from glob import glob
 import os
@@ -13,42 +14,38 @@ import sys
 import subprocess
 
 
+@contextmanager
+def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
+    """This function was shamelessly stolen from
+    https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
+    with slight modifications
+    """
+    old = os.getcwd()
+    if makedirs and dirname is not None:
+        try:
+            os.makedirs(dirname, mode)
+        except OSError as e:
+            if ( not exist_ok or e.errno != errno.EEXIST or
+                 not os.path.isdir(dirname) ):
+                raise
+
+    if dirname is not None:
+        os.chdir(dirname)
+
+    try:
+        yield
+    finally:
+        os.chdir(old)
+
+
 class SuperCommand(Command):
-    def spawn(self, cmd, search_path=1, cwd=None):
-        """Override spawn because we want flexible cwd and env
-        functionalities. An alternative would have been to copy
-        distutils.spawn and make slight edits for adjusting
-        cwd and env arguments directly in Popen. The current
-        method was chosen to reduce the number of lines in this
-        file.
+    def spawn(self, cmd, cwd=None):
+        """Override spawn because we want flexible to able
+        to change cwd in subprocesses.
         """
 
-        self.spawn_multiprocess(cmd, search_path, self.dry_run, cwd)
-
-
-    @classmethod
-    def spawn_multiprocess(cls, cmd, search_path, dry_run, cwd):
-        """A wrapper around distutils.spawn with custom cwd functionality
-        enabled. Uses multiprocessing to edit os.environ and for
-        calling os.chdir() to avoid chaging global variables.
-        """
-
-        from concurrent.futures import ProcessPoolExecutor
-        ex = ProcessPoolExecutor(max_workers=1)
-        p = ex.submit(cls._spawn, cmd, search_path, dry_run, cwd, os.getpid())
-        p.result()
-        ex.shutdown()
-
-
-    @staticmethod
-    def _spawn(cmd, search_path, dry_run, cwd, main_pid):
-        """This function is only meant to be run inside a new process"""
-
-        import distutils.spawn
-        assert os.getpid() != main_pid
-        if cwd is not None:
-            os.chdir(cwd)
-        distutils.spawn.spawn(cmd, search_path, dry_run=dry_run)
+        with pushd(cwd):
+            super().spawn(cmd)
 
 
 class JellyfishCommand(SuperCommand):
@@ -200,6 +197,9 @@ class JellyfishCommand(SuperCommand):
                 ]
             )
 
+            # looks like there is no native way for pip to specify a target
+            # build directory: https://github.com/pypa/pip/issues/3934,
+            # defaulting to a simple mv command
             self.move_file(
                 os.path.join(os.path.dirname(sys.executable), 'patchelf'),
                 './jfbuild/patchelf/bin/'
@@ -222,6 +222,10 @@ class JellyfishCommand(SuperCommand):
                 os.path.join('./pyjellyfish/.dylibs', get_lib_name())
             )
 
+            # the following `install_name_tool` commands simply copy what
+            # `delocate` (https://github.com/matthew-brett/delocate) was
+            # doing when run against on this project's wheel; the goal was
+            # for everything to happen during installation
             self.spawn(
                 [
                     'install_name_tool',
@@ -232,6 +236,9 @@ class JellyfishCommand(SuperCommand):
                 ]
             )
 
+            # this command doesn't seem to be essential, as per this answer:
+            # https://stackoverflow.com/a/35220218/16653409, but is kept just
+            # because it was being run by delocate
             self.spawn(
                 [
                     'install_name_tool',
@@ -280,6 +287,10 @@ class ClassFactory(object):
             """Custom setuptools.command command."""
 
             def run(self):
+                # this assert just makes sure that don't need to manually
+                # set binary distribution to True by following the same method
+                # as this answer: https://stackoverflow.com/a/24793171/16653409
+                assert self.distribution.has_ext_modules()
                 self.expand_sub_commands()
                 for cmd_name in self.get_sub_commands():
                     self.run_command(cmd_name)
@@ -353,7 +364,7 @@ metadata = dict(
     classifiers=classifiers,
     keywords='k-mer DNA',
     packages=['pyjellyfish'],
-    package_data={'pyjellyfish': ['.libs/*']},
+    package_data={'pyjellyfish': ['.*libs/*']},
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.5',

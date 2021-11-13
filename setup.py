@@ -9,6 +9,7 @@ from distutils import log
 from contextlib import contextmanager
 from distutils.errors import DistutilsOptionError
 from glob import glob
+import tarfile
 import os
 import sys
 import subprocess
@@ -81,20 +82,13 @@ class JellyfishCommand(SuperCommand):
             level=log.INFO
         )
 
-        self.mkpath('jf/build')
-
         lib_path = os.path.abspath(
             './jf/lib/python%s/site-packages'
             % sys.version[:3]
         )
 
         dir_name = 'jellyfish-%s' % self.version
-        base_url = 'https://github.com/gmarcais/Jellyfish'
-        url = '%s/releases/download/v%s/%s.tar.gz' % (
-                base_url,
-                self.version,
-                dir_name
-            )
+        jf_tarball = os.path.join('./jf/pkgs', '%s.tar.gz' % dir_name)
 
         build_dir = os.path.abspath('./jf/build')
         prefix = os.path.abspath('./jf')
@@ -143,15 +137,10 @@ class JellyfishCommand(SuperCommand):
                 lib = os.path.basename(libs[0].strip().split(' ')[0])
             return lib
 
-        self.spawn(
-            ['curl', '-L', url, '--output', dir_name+'.tar.gz'],
-            cwd=build_dir
-        )
+        self.mkpath(build_dir)
 
-        self.spawn(
-            ['tar', 'xzvf', dir_name+'.tar.gz'],
-            cwd=build_dir
-        )
+        with tarfile.open(jf_tarball, 'r:gz') as tar:
+            tar.extractall('./jf/build')
 
         self.spawn(
             ['./configure', '--prefix', prefix],

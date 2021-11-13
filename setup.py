@@ -190,7 +190,10 @@ class JellyfishCommand(SuperCommand):
                     'install',
                     'patchelf-wrapper',
                     '--target',
-                    os.path.abspath('./jfbuild/patchelf/lib/python3.7/site-packages'),
+                    os.path.abspath(
+                            './jfbuild/patchelf/lib/python%s/site-packages'
+                            % sys.version[:3]
+                        ),
                     '--upgrade',
                     '--no-cache-dir',
                     '--force'

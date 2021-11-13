@@ -27,7 +27,7 @@ var/
 *.DS_Store
 
 # Package-specific
-jfbuild/
+jf/
 dna_jellyfish.py
 pyjellyfish/.libs/
 pyjellyfish/.dylibs/

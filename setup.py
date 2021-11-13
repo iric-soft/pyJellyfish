@@ -16,7 +16,7 @@ import subprocess
 
 @contextmanager
 def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
-    """This function was shamelessly stolen from
+    """This function was shamelessly copied from
     https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
     with slight modifications
     """
@@ -81,7 +81,12 @@ class JellyfishCommand(SuperCommand):
             level=log.INFO
         )
 
-        self.mkpath('jfbuild/jf')
+        self.mkpath('jf/build')
+
+        lib_path = os.path.abspath(
+            './jf/lib/python%s/site-packages'
+            % sys.version[:3]
+        )
 
         dir_name = 'jellyfish-%s' % self.version
         base_url = 'https://github.com/gmarcais/Jellyfish'
@@ -91,8 +96,8 @@ class JellyfishCommand(SuperCommand):
                 dir_name
             )
 
-        build_dir = os.path.abspath('./jfbuild/jf')
-        prefix = os.path.abspath('./jfbuild/jf/jellyfish')
+        build_dir = os.path.abspath('./jf/build')
+        prefix = os.path.abspath('./jf')
 
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
         _pkg_config_path = '%s/lib/pkgconfig:%s' % (
@@ -100,8 +105,26 @@ class JellyfishCommand(SuperCommand):
                 env_pkg_config_path
             )
 
+        # from: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
+        if sys.platform == 'linux':
+            try:
+                output = subprocess.check_output(
+                    ['which', 'patchelf'], universal_newlines=True
+                )
+                patchelf_executable = os.path.abspath(output.strip())
+                self.announce('Found patchelf at {}'.format(output),
+                              log.INFO)
+                found_patchelf = True
+            except Exception:
+                self.announce('patchelf not found', log.INFO)
+                patchelf_executable = os.path.abspath('./jf/bin/patchelf')
+                found_patchelf = False
+        else:
+            patchelf_executable = None
+            found_patchelf = None
+
         def get_ext_name():
-            ext_path = glob('./jfbuild/dnajf/_dna_jellyfish*')
+            ext_path = glob(os.path.join(lib_path, '_dna_jellyfish*'))
             assert len(ext_path) == 1
             ext_file = os.path.basename(ext_path[0])
             return ext_file
@@ -155,62 +178,80 @@ class JellyfishCommand(SuperCommand):
         self.spawn(
             [
                 'env',
-                'PKG_CONFIG_PATH=' + _pkg_config_path,
+                'PKG_CONFIG_PATH=%s' % _pkg_config_path,
                 sys.executable, '-m', 'pip',
                 'install',
                 '.',
-                '--target', os.path.join(os.getcwd(), 'jfbuild/dnajf'),
+                '--target', os.path.join(os.getcwd(), lib_path),
                 '--upgrade'
             ],
             cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
         )
 
         self.copy_file(
-            './jfbuild/dnajf/dna_jellyfish.py',
+            os.path.join(lib_path, 'dna_jellyfish.py'),
             './dna_jellyfish.py'
         )
 
         self.copy_file(
-            os.path.join('./jfbuild/dnajf', get_ext_name()),
+            os.path.join(lib_path, get_ext_name()),
             os.path.join('.', get_ext_name())
         )
 
         if sys.platform == 'linux':
-            self.mkpath('jfbuild/patchelf/bin')
+            self.mkpath('jf/bin')
             self.mkpath('pyjellyfish/.libs')
 
             self.copy_file(
-                os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name()),
+                os.path.join('./jf/lib', get_lib_name()),
                 os.path.join('./pyjellyfish/.libs', get_lib_name())
             )
 
+            if found_patchelf:
+                pass
+            elif sys.prefix == sys.base_prefix:
+                # not in a virtual environment
+                # a handy hack for install bin and lib in a costum
+                # environment when not using venv (not recommended):
+                # https://stackoverflow.com/a/29103053/16653409
+                self.spawn(
+                    [
+                        'env',
+                        'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
+                        sys.executable, '-m', 'pip',
+                        'install',
+                        'patchelf-wrapper',
+                        '--user',
+                        '--upgrade',
+                        '--no-cache-dir',
+                        '--force'
+                    ]
+                )
+            else:
+                # in a virtual environment
+                self.spawn(
+                    [
+                        sys.executable, '-m', 'pip',
+                        'install',
+                        'patchelf-wrapper',
+                        '--target', lib_path,
+                        '--upgrade',
+                        '--no-cache-dir',
+                        '--force'
+                    ]
+                )
+
+                # looks like there is no native way for pip to specify a target
+                # build directory: https://github.com/pypa/pip/issues/3934,
+                # defaulting to a simple mv command
+                self.move_file(
+                    os.path.join(os.path.dirname(sys.executable), 'patchelf'),
+                    './jf/bin/'
+                )
+
             self.spawn(
                 [
-                    sys.executable, '-m', 'pip',
-                    'install',
-                    'patchelf-wrapper',
-                    '--target',
-                    os.path.abspath(
-                            './jfbuild/patchelf/lib/python%s/site-packages'
-                            % sys.version[:3]
-                        ),
-                    '--upgrade',
-                    '--no-cache-dir',
-                    '--force'
-                ]
-            )
-
-            # looks like there is no native way for pip to specify a target
-            # build directory: https://github.com/pypa/pip/issues/3934,
-            # defaulting to a simple mv command
-            self.move_file(
-                os.path.join(os.path.dirname(sys.executable), 'patchelf'),
-                './jfbuild/patchelf/bin/'
-            )
-
-            self.spawn(
-                [
-                    './jfbuild/patchelf/bin/patchelf',
+                    patchelf_executable,
                     '--set-rpath',
                     '$ORIGIN/pyjellyfish/.libs',
                     get_ext_name()
@@ -221,7 +262,7 @@ class JellyfishCommand(SuperCommand):
             self.mkpath('pyjellyfish/.dylibs')
 
             self.copy_file(
-                os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name()),
+                os.path.join('./jf/lib', get_lib_name()),
                 os.path.join('./pyjellyfish/.dylibs', get_lib_name())
             )
 
@@ -233,7 +274,7 @@ class JellyfishCommand(SuperCommand):
                 [
                     'install_name_tool',
                     '-change',
-                    os.path.abspath(os.path.join('./jfbuild/jf/jellyfish/lib', get_lib_name())),
+                    os.path.abspath(os.path.join('./jf/lib', get_lib_name())),
                     os.path.join('@loader_path/pyjellyfish/.dylibs', get_lib_name()),
                     get_ext_name()
                 ]

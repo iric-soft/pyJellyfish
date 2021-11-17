@@ -366,7 +366,7 @@ class DevelopCommand(develop):
 
 # Get the long description from the README file
 here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
+with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 classifiers = [
@@ -400,7 +400,7 @@ metadata = dict(
     package_data={'pyjellyfish': ['.*libs/*']},
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     cmdclass={
         'jellyfish': JellyfishCommand,
         'build_py': BuildPyCommand,

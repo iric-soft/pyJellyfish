@@ -378,7 +378,7 @@ classifiers = [
     'Topic :: Software Development',
     'Topic :: Software Development :: Build Tools',
 
-    'License :: OSI Approved :: BSD 3-clause License',
+    'License :: OSI Approved :: BSD License',
 
     'Programming Language :: Python :: 3.7',
 

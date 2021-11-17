@@ -391,6 +391,7 @@ metadata = dict(
     description='A python wrapper around DNA k-kmer counter Jellfish',
     long_description=long_description,
     url='https://github.com/iric-soft/pyJellyfish',
+    download_url='https://github.com/iric-soft/pyJellyfish/archive/refs/tags/v0.1.0.tar.gz',
     author='Albert Feghaly',
     author_email='bioinformatique@iric.ca',
     license='BSD',

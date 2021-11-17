@@ -380,7 +380,7 @@ classifiers = [
 
     'License :: OSI Approved :: BSD License',
 
-    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.6',
 
     'Natural Language :: English',
 ]
@@ -397,8 +397,8 @@ metadata = dict(
     license='BSD',
     classifiers=classifiers,
     keywords='k-mer DNA',
-    packages=['pyjellyfish'],
-    package_data={'pyjellyfish': ['.*libs/*']},
+    packages=['pyjellyfish', 'jf'],
+    package_data={'pyjellyfish': ['.*libs/*'], 'jf': ['pkgs/*']},
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.6',

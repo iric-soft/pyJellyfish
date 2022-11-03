@@ -3,7 +3,6 @@ pyJellyfish : Python wrapper around Jellyfish (k-mer counter)
 
 [![Python version][py-image]][py-link]
 [![PyPi version][pypi-image]][pypi-link]
-[![Build status][ci-image]][ci-link]
 
 Introduction
 ------------
@@ -59,5 +58,3 @@ pip install .
 [py-link]: https://www.python.org/download/releases/3.6.0
 [pypi-image]: https://img.shields.io/pypi/v/pyjellyfish.svg
 [pypi-link]: https://pypi.python.org/pypi/pyjellyfish
-[ci-image]: https://travis-ci.org/iric-soft/pyJellyfish.svg?branch
-[ci-link]: https://travis-ci.org/iric-soft/pyJellyfish

@@ -428,7 +428,7 @@ classifiers = [
 
 metadata = dict(
     name='pyjellyfish',
-    version='1.1.1',
+    version='1.2.0',
     description='A python wrapper around DNA k-kmer counter Jellfish',
     long_description=long_description,
     url='https://github.com/iric-soft/pyJellyfish',

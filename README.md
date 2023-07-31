@@ -4,11 +4,23 @@ pyJellyfish : Python wrapper around Jellyfish (k-mer counter)
 [![Python version][py-image]][py-link]
 [![PyPi version][pypi-image]][pypi-link]
 
+NOTE
+----
+
+This install script is not yet PEP517 compliant, which means the
+wheel and setuptools packages *need* to be in your environment.
+
+Do not forget this line when setting up your environment (see below):
+
+``` {.sourceCode .shell}
+pip install --upgrade setuptools wheel pip
+```
+
 Introduction
 ------------
 
 This tool essentially serves as an installer for Jellyfish for use with
-Python. A small bundle of utilities is also included as a bonus.
+Python. A small bundle of utilities is also included.
 
 Citing
 ------
@@ -34,17 +46,16 @@ pip install .
 
 Additionally, pyJellyfish contains an option to manually specify which
 Jellyfish version one wishes to build against. This can be done by
-running setup.py with the the custom build command `jellyfish`.
+running setup.py with the custom build command `jellyfish`.
 
 ``` {.sourceCode .shell}
 source $HOME/.virtualenvs/km/bin/activate
 python setup.py jellyfish --version 2.2.10
 ```
 
-Note that the setup script will automatically detect if jellyfish is
-installed on your system and build against it if found. After running
-the previous commands, installation will proceed as usual, skipping the
-jellyfish installation step.
+Note that the setup script will automatically detect if jellyfish has
+already been built and use that instead of re-running the jellyfish step.
+After running the previous command, installation will proceed as usual.
 
 ``` {.sourceCode .shell}
 pip install .

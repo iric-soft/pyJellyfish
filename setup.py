@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
 
-from setuptools import setup, find_packages, Extension
-from setuptools.command.build_py import build_py
-from setuptools.command.develop import develop
-from setuptools.command.build_ext import build_ext
-from distutils.cmd import Command
-from distutils import log
+import os
+import subprocess
+import sys
+import tarfile
 from contextlib import contextmanager
+from distutils import log
+from distutils.cmd import Command
 from distutils.errors import DistutilsOptionError
 from glob import glob
-import tarfile
-import os
-import sys
-import subprocess
+from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_ext
+from setuptools.command.build_py import build_py
+from setuptools.command.develop import develop
 
 
 @contextmanager
 def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
-    """This function was shamelessly copied from
-    https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
-    with slight modifications
+    """From: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
     """
     old = os.getcwd()
     if makedirs and dirname is not None:
@@ -41,10 +39,9 @@ def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
 
 class SuperCommand(Command):
     def spawn(self, cmd, cwd=None):
-        """Override spawn because we want flexible to able
+        """Override spawn because we need the flexibility to be able
         to change cwd in subprocesses.
         """
-
         with pushd(cwd):
             super().spawn(cmd)
 
@@ -141,24 +138,24 @@ class JellyfishCommand(SuperCommand):
 
         with tarfile.open(jf_tarball, 'r:gz') as tar:
             def is_within_directory(directory, target):
-                
+
                 abs_directory = os.path.abspath(directory)
                 abs_target = os.path.abspath(target)
-            
+
                 prefix = os.path.commonprefix([abs_directory, abs_target])
-                
+
                 return prefix == abs_directory
-            
+
             def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-            
+
                 for member in tar.getmembers():
                     member_path = os.path.join(path, member.name)
                     if not is_within_directory(path, member_path):
                         raise Exception("Attempted Path Traversal in Tar File")
-            
-                tar.extractall(path, members, numeric_owner=numeric_owner) 
-                
-            
+
+                tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
             safe_extract(tar, "./jf/build")
 
         self.spawn(
@@ -217,11 +214,13 @@ class JellyfishCommand(SuperCommand):
 
             if found_patchelf:
                 pass
+
             elif sys.prefix == sys.base_prefix:
-                # not in a virtual environment
-                # a handy hack for install bin and lib in a costum
+                # not in a virtual environment;
+                # a handy hack for installing bin and lib in a custom
                 # environment when not using venv (not recommended):
                 # https://stackoverflow.com/a/29103053/16653409
+
                 self.spawn(
                     [
                         'env',
@@ -235,8 +234,15 @@ class JellyfishCommand(SuperCommand):
                         '--force'
                     ]
                 )
+
             else:
-                # in a virtual environment
+                # in a virtual environment;
+                # looks like there is no native way for pip to specify a target
+                # build directory: https://github.com/pypa/pip/issues/3934,
+                # defaulting to a simple mv command (this is quite dirty and
+                # leaves artifcats such as $VIRTUAL_ENV/share/doc/patchelf and
+                # $VIRTUAL_ENV/share/man/man1/patchelf.1 which is not ideal)
+
                 self.spawn(
                     [
                         sys.executable, '-m', 'pip',
@@ -249,9 +255,7 @@ class JellyfishCommand(SuperCommand):
                     ]
                 )
 
-                # looks like there is no native way for pip to specify a target
-                # build directory: https://github.com/pypa/pip/issues/3934,
-                # defaulting to a simple mv command
+
                 self.move_file(
                     os.path.join(os.path.dirname(sys.executable), 'patchelf'),
                     './jf/bin/'
@@ -314,8 +318,12 @@ class BuildExtCommand(build_ext):
         if os.path.isfile(ext_loc):
             self.copy_file(ext_loc, ext_dest)
         else:
+            log.warn(
+                "file %s (for extension %s) not found",
+                os.path.basename(ext_loc),
+                ext.name
+            )
             raise DistutilsOptionError('Cannot find extension %s' % ext_loc)
-
 
 
 # Ideally, this class would be a Singleton, but that would be
@@ -339,22 +347,36 @@ class ClassFactory(object):
             """Custom setuptools.command command."""
 
             def run(self):
-                # this assert just makes sure that don't need to manually
-                # set binary distribution to True by following the same method
-                # as this answer: https://stackoverflow.com/a/24793171/16653409
+                # this assert verifies that we don't need to set binary
+                # distribution to True as per this stackoverflow answer:
+                # https://stackoverflow.com/a/24793171/16653409
                 assert self.distribution.has_ext_modules()
+
                 self.expand_sub_commands()
                 for cmd_name in self.get_sub_commands():
                     self.run_command(cmd_name)
                 super(CustomCommand, self).run()
 
             def has_absent_jellyfish(self):
-                """Returns true if jellyfish is not installed."""
+                """Returns true if jellyfish is not installed.
+
+                Also makes sure the imported jellyfish is the one
+                built in the installation repo and not a pre-installed
+                version in python's libraries folder making sure a
+                _dna_jellyfish extension module exists, otherwise a
+                DistutilsOptionError will be raised.
+                """
+
                 try:
                     import dna_jellyfish
-                    return False
-                except (ModuleNotFoundError, ImportError):
-                    return True
+                    jf_loc = os.path.abspath(dna_jellyfish.__file__)
+                    cur_loc = os.path.abspath(os.getcwd())
+                    if os.path.dirname(jf_loc) == cur_loc:
+                        return False
+                except ModuleNotFoundError:
+                    pass
+
+                return True
 
             def expand_sub_commands(self):
                 if self.add_sub_cmd not in self.sub_commands:

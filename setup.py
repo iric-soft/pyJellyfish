@@ -434,6 +434,7 @@ metadata = dict(
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.6',
+    setup_requires=['pip'],
     cmdclass={
         'jellyfish': JellyfishCommand,
         'build_py': BuildPyCommand,

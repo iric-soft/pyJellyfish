@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import subprocess
 import sys
 import tarfile
 from contextlib import contextmanager
@@ -13,6 +12,7 @@ from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
+from subprocess import check_output
 
 
 @contextmanager
@@ -47,7 +47,7 @@ class SuperCommand(Command):
 
 
 class JellyfishCommand(SuperCommand):
-    """ Custom Jellyfish commands for compiling jellyfish. """
+    """Custom Jellyfish command for compiling jellyfish."""
 
     description = 'build and install jellyfish in default libpath'
 
@@ -91,15 +91,12 @@ class JellyfishCommand(SuperCommand):
         prefix = os.path.abspath('./jf')
 
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
-        _pkg_config_path = '%s/lib/pkgconfig:%s' % (
-                prefix,
-                env_pkg_config_path
-            )
+        _pkg_config_path = '%s/lib/pkgconfig:%s' % (prefix, env_pkg_config_path)
 
         # from: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
         if sys.platform == 'linux':
             try:
-                output = subprocess.check_output(
+                output = check_output(
                     ['which', 'patchelf'], universal_newlines=True
                 )
                 patchelf_executable = os.path.abspath(output.strip())
@@ -123,12 +120,12 @@ class JellyfishCommand(SuperCommand):
         def get_lib_name():
             ext_file = get_ext_name()
             if sys.platform == 'linux':
-                out = subprocess.check_output(['ldd', ext_file])
+                out = check_output(['ldd', ext_file])
                 libs = [x for x in out.decode().split('\n') if 'libjellyfish' in x]
                 assert len(libs) == 1
                 lib = libs[0].strip().split(' ')[0]
             elif sys.platform == 'darwin':
-                out = subprocess.check_output(['otool', '-L', ext_file])
+                out = check_output(['otool', '-L', ext_file])
                 libs = [x for x in out.decode().split('\n')[1:] if 'libjellyfish' in x]
                 assert len(libs) == 1
                 lib = os.path.basename(libs[0].strip().split(' ')[0])
@@ -183,11 +180,11 @@ class JellyfishCommand(SuperCommand):
         self.spawn(
             [
                 'env',
-                'PKG_CONFIG_PATH=%s' % _pkg_config_path,
+                'PKG_CONFIG_PATH=' + _pkg_config_path,
                 sys.executable, '-m', 'pip',
                 'install',
                 '.',
-                '--target', os.path.join(os.getcwd(), lib_path),
+                '--target', lib_path,
                 '--upgrade'
             ],
             cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
@@ -255,7 +252,6 @@ class JellyfishCommand(SuperCommand):
                     ]
                 )
 
-
                 self.move_file(
                     os.path.join(os.path.dirname(sys.executable), 'patchelf'),
                     './jf/bin/'
@@ -278,9 +274,9 @@ class JellyfishCommand(SuperCommand):
                 os.path.join('./pyjellyfish/.dylibs', get_lib_name())
             )
 
-            # the following `install_name_tool` commands simply copy what
+            # the following `install_name_tool` commands simply copies what
             # `delocate` (https://github.com/matthew-brett/delocate) was
-            # doing when run against on this project's wheel; the goal was
+            # doing when run on this project's wheel; the goal here is
             # for everything to happen during installation
             self.spawn(
                 [

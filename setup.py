@@ -4,14 +4,13 @@ import os
 import sys
 import tarfile
 from contextlib import contextmanager
-from distutils import log
-from distutils.cmd import Command
-from distutils.errors import DistutilsOptionError
 from glob import glob
-from setuptools import setup, find_packages, Extension
+from logging import INFO
+from setuptools import Command, Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
+from setuptools.errors import OptionError
 from subprocess import check_output
 
 
@@ -88,7 +87,7 @@ class JellyfishCommand(SuperCommand):
     def finalize_options(self):
         if self.version:
             if self.version not in  ['2.2.10', '2.3.0']:
-                raise DistutilsOptionError(
+                raise OptionError(
                         "error in jellyfish-version option: accepted versions " +
                         "are 2.2.10 and 2.3.0"
                     )
@@ -99,7 +98,7 @@ class JellyfishCommand(SuperCommand):
     def run(self):
         self.announce(
             '%s\nInstalling jellyfish v%s\n%s' %('*'*40, self.version, '*'*40),
-            level=log.INFO
+            level=INFO
         )
 
         lib_path = os.path.abspath(
@@ -124,10 +123,10 @@ class JellyfishCommand(SuperCommand):
                 )
                 patchelf_executable = os.path.abspath(output.strip())
                 self.announce('Found patchelf at {}'.format(output),
-                              log.INFO)
+                              level=INFO)
                 found_patchelf = True
             except Exception:
-                self.announce('patchelf not found', log.INFO)
+                self.announce('patchelf not found', level=INFO)
                 patchelf_executable = os.path.abspath('./jf/bin/patchelf')
                 found_patchelf = False
         else:
@@ -305,7 +304,7 @@ class JellyfishCommand(SuperCommand):
 
         self.announce(
             '%s\nSuccessfully installed jellyfish\n%s' %('*'*40, '*'*40),
-            level=log.INFO
+            level=INFO
         )
 
 
@@ -317,12 +316,11 @@ class BuildExtCommand(build_ext):
         if os.path.isfile(ext_loc):
             self.copy_file(ext_loc, ext_dest)
         else:
-            log.warn(
-                "file %s (for extension %s) not found",
-                os.path.basename(ext_loc),
-                ext.name
-            )
-            raise DistutilsOptionError('Cannot find extension %s' % ext_loc)
+            raise OptionError(
+                "Cannot find extension %s located at %s" % (
+                    ext.name,
+                    os.path.basename(ext_loc)
+                ))
 
 
 # Ideally, this class would be a Singleton, but that would be

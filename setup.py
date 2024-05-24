@@ -15,6 +15,29 @@ from setuptools.command.develop import develop
 from subprocess import check_output
 
 
+def safe_extract_tarfile(tarball, destination):
+    with tarfile.open(tarball, 'r:gz') as tar:
+        def is_within_directory(directory, target):
+
+            abs_directory = os.path.abspath(directory)
+            abs_target = os.path.abspath(target)
+
+            prefix = os.path.commonprefix([abs_directory, abs_target])
+
+            return prefix == abs_directory
+
+        def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+
+            for member in tar.getmembers():
+                member_path = os.path.join(path, member.name)
+                if not is_within_directory(path, member_path):
+                    raise Exception("Attempted Path Traversal in Tar File")
+
+            tar.extractall(path, members, numeric_owner=numeric_owner)
+
+        safe_extract(tar, destination)
+
+
 @contextmanager
 def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
     """From: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
@@ -133,27 +156,7 @@ class JellyfishCommand(SuperCommand):
 
         self.mkpath(build_dir)
 
-        with tarfile.open(jf_tarball, 'r:gz') as tar:
-            def is_within_directory(directory, target):
-
-                abs_directory = os.path.abspath(directory)
-                abs_target = os.path.abspath(target)
-
-                prefix = os.path.commonprefix([abs_directory, abs_target])
-
-                return prefix == abs_directory
-
-            def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
-
-                for member in tar.getmembers():
-                    member_path = os.path.join(path, member.name)
-                    if not is_within_directory(path, member_path):
-                        raise Exception("Attempted Path Traversal in Tar File")
-
-                tar.extractall(path, members, numeric_owner=numeric_owner)
-
-
-            safe_extract(tar, "./jf/build")
+        safe_extract_tarfile(jf_tarball, "./jf/build")
 
         self.spawn(
             ['./configure', '--prefix', prefix],

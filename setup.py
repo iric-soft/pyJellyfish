@@ -12,6 +12,7 @@ from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.errors import OptionError, SetupError
 from subprocess import CalledProcessError, check_output
+from wheel.bdist_wheel import bdist_wheel
 
 
 def safe_extract_tarfile(tarball, destination):
@@ -85,6 +86,7 @@ class JellyfishCommand(SuperCommand):
 
 
     def finalize_options(self):
+        self.set_undefined_options('bdist_wheel', ('jf_version', 'version'))
         if self.version:
             if self.version not in  ['2.2.10', '2.3.0']:
                 raise OptionError(
@@ -304,6 +306,20 @@ class JellyfishCommand(SuperCommand):
         )
 
 
+class BDistWheelCommand(bdist_wheel):
+    """Custom BDistWheel command for capturing Jellyfish's version."""
+
+    user_options = bdist_wheel.user_options + [(
+        'jf-version=',
+        None,
+        'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)'
+    )]
+
+    def initialize_options(self):
+        super().initialize_options()
+        self.jf_version = None
+
+
 class BuildExtCommand(build_ext):
     def build_extension(self, ext):
         ext_dest = self.get_ext_fullpath(ext.name)
@@ -435,7 +451,8 @@ metadata = dict(
         'jellyfish': JellyfishCommand,
         'build_py': BuildPyCommand,
         'build_ext': BuildExtCommand,
-        'develop': DevelopCommand
+        'develop': DevelopCommand,
+        'bdist_wheel': BDistWheelCommand
     }
 )
 

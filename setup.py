@@ -12,6 +12,7 @@ from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.errors import OptionError, SetupError
 from subprocess import CalledProcessError, check_output
+from wheel.bdist_wheel import bdist_wheel
 
 
 def safe_extract_tarfile(tarball, destination):
@@ -91,18 +92,18 @@ class JellyfishCommand(SuperCommand):
 
     description = 'build and install jellyfish in default libpath'
 
+    # only useful when using the deprecated `python setup.py jellyfish`
     user_options = [(
             'version=',
             None,
             'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)'
         )]
 
-
     def initialize_options(self):
         self.version = None
 
-
     def finalize_options(self):
+        self.set_undefined_options('bdist_wheel', ('jf_version', 'version'))
         if self.version:
             if self.version not in  ['2.2.10', '2.3.0']:
                 raise OptionError(
@@ -111,7 +112,6 @@ class JellyfishCommand(SuperCommand):
                     )
         else:
             self.version = '2.3.0'
-
 
     def run(self):
         self.announce(
@@ -333,6 +333,20 @@ class PatchElfCommand(SuperCommand):
             )
 
 
+class BDistWheelCommand(bdist_wheel):
+    """Custom BDistWheel command for capturing Jellyfish's version."""
+
+    user_options = bdist_wheel.user_options + [(
+        'jf-version=',
+        None,
+        'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)'
+    )]
+
+    def initialize_options(self):
+        super().initialize_options()
+        self.jf_version = None
+
+
 class BuildExtCommand(build_ext):
     def build_extension(self, ext):
         ext_dest = self.get_ext_fullpath(ext.name)
@@ -448,7 +462,7 @@ classifiers = [
 
     'License :: OSI Approved :: BSD License',
 
-    'Programming Language :: Python :: 3.6',
+    'Programming Language :: Python :: 3.8',
 
     'Natural Language :: English',
 ]
@@ -479,7 +493,8 @@ metadata = dict(
         'patchelf': PatchElfCommand,
         'build_py': BuildPyCommand,
         'build_ext': BuildExtCommand,
-        'develop': DevelopCommand
+        'develop': DevelopCommand,
+        'bdist_wheel': BDistWheelCommand
     }
 )
 

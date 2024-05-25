@@ -344,11 +344,6 @@ class ClassFactory(object):
             """Custom setuptools.command command."""
 
             def run(self):
-                # this assert verifies that we don't need to set binary
-                # distribution to True as per this stackoverflow answer:
-                # https://stackoverflow.com/a/24793171/16653409
-                assert self.distribution.has_ext_modules()
-
                 self.expand_sub_commands()
                 for cmd_name in self.get_sub_commands():
                     self.run_command(cmd_name)

@@ -362,23 +362,28 @@ class ClassFactory(object):
                 super(CustomCommand, self).run()
 
             def has_absent_jellyfish(self):
-                """Returns true if jellyfish is not installed.
-
-                Also makes sure the imported jellyfish is the one
+                """Returns true if jellyfish is not installed and
+                makes sure the imported jellyfish is the one
                 built in the installation repo and not a pre-installed
-                version in python's libraries folder making sure a
-                _dna_jellyfish extension module exists, otherwise a
-                DistutilsOptionError will be raised.
+                version in python's libraries folder making sure that a
+                _dna_jellyfish extension module exists.
+
+                NOTE
+                ----
+                There is no more need for this as bdist_wheel will
+                install the required jellyfish version in an isolated
+                environment leading to a consistent behaviour with each
+                installation.
                 """
 
-                try:
-                    import dna_jellyfish
-                    jf_loc = os.path.abspath(dna_jellyfish.__file__)
-                    cur_loc = os.path.abspath(os.getcwd())
-                    if os.path.dirname(jf_loc) == cur_loc:
-                        return False
-                except ModuleNotFoundError:
-                    pass
+                #try:
+                #    import dna_jellyfish
+                #    jf_loc = os.path.abspath(dna_jellyfish.__file__)
+                #    cur_loc = os.path.abspath(os.getcwd())
+                #    if os.path.dirname(jf_loc) == cur_loc:
+                #        return False
+                #except ModuleNotFoundError:
+                #    pass
 
                 return True
 

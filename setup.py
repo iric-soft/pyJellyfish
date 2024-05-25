@@ -12,6 +12,7 @@ from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
 from setuptools.errors import OptionError, SetupError
 from subprocess import CalledProcessError, check_output
+from wheel.bdist_wheel import bdist_wheel
 
 
 def safe_extract_tarfile(tarball, destination):
@@ -85,6 +86,7 @@ class JellyfishCommand(SuperCommand):
 
 
     def finalize_options(self):
+        self.set_undefined_options('bdist_wheel', ('jf_version', 'version'))
         if self.version:
             if self.version not in  ['2.2.10', '2.3.0']:
                 raise OptionError(
@@ -304,6 +306,20 @@ class JellyfishCommand(SuperCommand):
         )
 
 
+class BDistWheelCommand(bdist_wheel):
+    """Custom BDistWheel command for capturing Jellyfish's version."""
+
+    user_options = bdist_wheel.user_options + [(
+        'jf-version=',
+        None,
+        'jellyfish version [2.2.10, 2.3.0] (default: 2.3.0)'
+    )]
+
+    def initialize_options(self):
+        super().initialize_options()
+        self.jf_version = None
+
+
 class BuildExtCommand(build_ext):
     def build_extension(self, ext):
         ext_dest = self.get_ext_fullpath(ext.name)
@@ -346,23 +362,28 @@ class ClassFactory(object):
                 super(CustomCommand, self).run()
 
             def has_absent_jellyfish(self):
-                """Returns true if jellyfish is not installed.
-
-                Also makes sure the imported jellyfish is the one
+                """Returns true if jellyfish is not installed and
+                makes sure the imported jellyfish is the one
                 built in the installation repo and not a pre-installed
-                version in python's libraries folder making sure a
-                _dna_jellyfish extension module exists, otherwise a
-                DistutilsOptionError will be raised.
+                version in python's libraries folder making sure that a
+                _dna_jellyfish extension module exists.
+
+                NOTE
+                ----
+                There is no more need for this as bdist_wheel will
+                install the required jellyfish version in an isolated
+                environment leading to a consistent behaviour with each
+                installation.
                 """
 
-                try:
-                    import dna_jellyfish
-                    jf_loc = os.path.abspath(dna_jellyfish.__file__)
-                    cur_loc = os.path.abspath(os.getcwd())
-                    if os.path.dirname(jf_loc) == cur_loc:
-                        return False
-                except ModuleNotFoundError:
-                    pass
+                #try:
+                #    import dna_jellyfish
+                #    jf_loc = os.path.abspath(dna_jellyfish.__file__)
+                #    cur_loc = os.path.abspath(os.getcwd())
+                #    if os.path.dirname(jf_loc) == cur_loc:
+                #        return False
+                #except ModuleNotFoundError:
+                #    pass
 
                 return True
 
@@ -393,51 +414,15 @@ class DevelopCommand(develop):
     pass
 
 
-# Get the long description from the README file
-here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
-
-classifiers = [
-    'Development Status :: 5 - Production/Stable',
-
-    'Intended Audience :: Science/Research',
-    'Intended Audience :: Healthcare Industry',
-    'Topic :: Scientific/Engineering :: Bio-Informatics',
-    'Topic :: Software Development',
-    'Topic :: Software Development :: Build Tools',
-
-    'License :: OSI Approved :: BSD License',
-
-    'Programming Language :: Python :: 3.6',
-
-    'Natural Language :: English',
-]
-
-metadata = dict(
-    name='pyjellyfish',
-    version='1.2.0',
-    description='A python wrapper around DNA k-kmer counter Jellfish',
-    long_description=long_description,
-    url='https://github.com/iric-soft/pyJellyfish',
-    author='Albert Feghaly',
-    author_email='bioinformatique@iric.ca',
-    license='BSD',
-    classifiers=classifiers,
-    keywords='k-mer DNA',
-    packages=['pyjellyfish', 'jf'],
-    package_data={'pyjellyfish': ['.*libs/*'], 'jf': ['pkgs/*']},
-    ext_modules=[Extension("_dna_jellyfish", sources=[])],
-    py_modules = ["dna_jellyfish"],
-    python_requires='>=3.6',
-    setup_requires=['pip', 'patchelf'],
-    cmdclass={
-        'jellyfish': JellyfishCommand,
-        'build_py': BuildPyCommand,
-        'build_ext': BuildExtCommand,
-        'develop': DevelopCommand
-    }
-)
-
 if __name__ == '__main__':
-    setup(**metadata)
+    setup(
+        py_modules = ["dna_jellyfish"],
+        ext_modules = [Extension("_dna_jellyfish", sources=[])],
+        cmdclass = {
+            'jellyfish': JellyfishCommand,
+            'build_py': BuildPyCommand,
+            'build_ext': BuildExtCommand,
+            'develop': DevelopCommand,
+            'bdist_wheel': BDistWheelCommand
+        }
+    )

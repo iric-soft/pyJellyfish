@@ -10,8 +10,8 @@ from setuptools import Command, Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
-from setuptools.errors import OptionError
-from subprocess import check_output
+from setuptools.errors import OptionError, SetupError
+from subprocess import CalledProcessError, check_output
 
 
 def safe_extract_tarfile(tarball, destination):
@@ -115,23 +115,17 @@ class JellyfishCommand(SuperCommand):
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
         _pkg_config_path = '%s/lib/pkgconfig:%s' % (prefix, env_pkg_config_path)
 
-        # from: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
         if sys.platform == 'linux':
             try:
-                output = check_output(
-                    ['which', 'patchelf'], universal_newlines=True
-                )
-                patchelf_executable = os.path.abspath(output.strip())
-                self.announce('Found patchelf at {}'.format(output),
-                              level=INFO)
-                found_patchelf = True
-            except Exception:
-                self.announce('patchelf not found', level=INFO)
-                patchelf_executable = os.path.abspath('./jf/bin/patchelf')
-                found_patchelf = False
+                output = check_output(['which', 'patchelf'], universal_newlines=True)
+            except CalledProcessError:
+                raise SetupError("Setuptools seems to have failed to install patchelf")
+
+            patchelf_executable = os.path.abspath(output.strip())
+            self.announce('Found patchelf at {}'.format(output), level=INFO)
+
         else:
             patchelf_executable = None
-            found_patchelf = None
 
         def get_ext_name():
             ext_path = glob(os.path.join(lib_path, '_dna_jellyfish*'))
@@ -211,55 +205,55 @@ class JellyfishCommand(SuperCommand):
                 os.path.join('./pyjellyfish/.libs', get_lib_name())
             )
 
-            if found_patchelf:
-                # adding patchelf to setup_requires should always set this to
-                # True, and avoid having to run one of the next two commands
-                pass
+            # if found_patchelf:
+            #     # adding patchelf to setup_requires should always set this to
+            #     # True, and avoid having to run one of the next two commands
+            #     pass
 
-            elif sys.prefix == sys.base_prefix:
-                # not in a virtual environment;
-                # a handy hack for installing bin and lib in a custom
-                # environment when not using venv (not recommended):
-                # https://stackoverflow.com/a/29103053/16653409
+            # elif sys.prefix == sys.base_prefix:
+            #     # not in a virtual environment;
+            #     # a handy hack for installing bin and lib in a custom
+            #     # environment when not using venv (not recommended):
+            #     # https://stackoverflow.com/a/29103053/16653409
 
-                self.spawn(
-                    [
-                        'env',
-                        'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
-                        sys.executable, '-m', 'pip',
-                        'install',
-                        'patchelf-wrapper',
-                        '--user',
-                        '--upgrade',
-                        '--no-cache-dir',
-                        '--force'
-                    ]
-                )
+            #     self.spawn(
+            #         [
+            #             'env',
+            #             'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
+            #             sys.executable, '-m', 'pip',
+            #             'install',
+            #             'patchelf-wrapper',
+            #             '--user',
+            #             '--upgrade',
+            #             '--no-cache-dir',
+            #             '--force'
+            #         ]
+            #     )
 
-            else:
-                # in a virtual environment;
-                # looks like there is no native way for pip to specify a target
-                # build directory: https://github.com/pypa/pip/issues/3934,
-                # defaulting to a simple mv command (this is quite dirty and
-                # leaves artifcats such as $VIRTUAL_ENV/share/doc/patchelf and
-                # $VIRTUAL_ENV/share/man/man1/patchelf.1 which is not ideal)
+            # else:
+            #     # in a virtual environment;
+            #     # looks like there is no native way for pip to specify a target
+            #     # build directory: https://github.com/pypa/pip/issues/3934,
+            #     # defaulting to a simple mv command (this is quite dirty and
+            #     # leaves artifcats such as $VIRTUAL_ENV/share/doc/patchelf and
+            #     # $VIRTUAL_ENV/share/man/man1/patchelf.1 which is not ideal)
 
-                self.spawn(
-                    [
-                        sys.executable, '-m', 'pip',
-                        'install',
-                        'patchelf-wrapper',
-                        '--target', lib_path,
-                        '--upgrade',
-                        '--no-cache-dir',
-                        '--force'
-                    ]
-                )
+            #     self.spawn(
+            #         [
+            #             sys.executable, '-m', 'pip',
+            #             'install',
+            #             'patchelf-wrapper',
+            #             '--target', lib_path,
+            #             '--upgrade',
+            #             '--no-cache-dir',
+            #             '--force'
+            #         ]
+            #     )
 
-                self.move_file(
-                    os.path.join(os.path.dirname(sys.executable), 'patchelf'),
-                    './jf/bin/'
-                )
+            #     self.move_file(
+            #         os.path.join(os.path.dirname(sys.executable), 'patchelf'),
+            #         './jf/bin/'
+            #     )
 
             self.spawn(
                 [

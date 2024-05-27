@@ -1,21 +1,26 @@
-pyJellyfish : Python wrapper around Jellyfish
-=============================================
+pyJellyfish : Python wrapper around Jellyfish (k-mer counter)
+=============================================================
 
-[![Python version][py3.6-image]][py3.6-link]
-[![Python version][py3.7-image]][py3.7-link]
-[![Python version][py3.8-image]][py3.8-link]
-[![Python version][py3.9-image]][py3.9-link]
-[![Python version][py3.10-image]][py3.10-link]
-[![Python version][py3.11-image]][py3.11-link]
-[![Python version][py3.12-image]][py3.12-link]
+[![Python version][py-image]][py-link]
 [![PyPi version][pypi-image]][pypi-link]
+
+NOTE
+----
+
+This install script is not yet PEP517 compliant, which means the
+wheel and setuptools packages *need* to be in your environment.
+
+Do not forget this line when setting up your environment (see below):
+
+``` {.sourceCode .shell}
+pip install --upgrade setuptools wheel pip
+```
 
 Introduction
 ------------
 
-This tool essentially serves as an installer for the k-mer counter Jellyfish
-for use with Python. A small bundle of utilities is also included. A typical
-use-case for this package would be km: <https://github.com/iric-soft/km>.
+This tool essentially serves as an installer for Jellyfish for use with
+Python. A small bundle of utilities is also included.
 
 Citing
 ------
@@ -33,47 +38,34 @@ Install
 ``` {.sourceCode .shell}
 python -m venv $HOME/.virtualenvs/km
 source $HOME/.virtualenvs/km/bin/activate
-pip install --upgrade pip
+pip install --upgrade setuptools wheel pip
 pip install .
 ```
 
 ### Options
 
-Note that pyJellyfish has an option to manually specify which
+Additionally, pyJellyfish contains an option to manually specify which
 Jellyfish version one wishes to build against. This can be done by
-running pip install with specific arguments:
+running setup.py with the custom build command `jellyfish`.
 
 ``` {.sourceCode .shell}
 source $HOME/.virtualenvs/km/bin/activate
-pip install . --config-settings="--build-option='--jf-version=2.2.10'"
+python setup.py jellyfish --version 2.2.10
 ```
 
-For building pyJellyfish distributions, use the `build` command:
+Note that the setup script will automatically detect if jellyfish has
+already been built and use that instead of re-running the jellyfish step.
+After running the previous command, installation will proceed as usual.
 
 ``` {.sourceCode .shell}
-source $HOME/.virtualenvs/km/bin/activate
-pip install build
-python -m build --config-setting="--build-option='--jf-version=2.2.10'"
+pip install .
 ```
 
 #### Requirements
 
 -   Python 3.6.0 or later
 
-[py3.6-image]: https://img.shields.io/badge/python-3.6-blue.svg
-[py3.6-link]: https://www.python.org/downloads/release/python-360
-[py3.7-image]: https://img.shields.io/badge/python-3.7-blue.svg
-[py3.7-link]: https://www.python.org/downloads/release/python-370
-[py3.8-image]: https://img.shields.io/badge/python-3.8-blue.svg
-[py3.8-link]: https://www.python.org/downloads/release/python-380
-[py3.9-image]: https://img.shields.io/badge/python-3.9-blue.svg
-[py3.9-link]: https://www.python.org/downloads/release/python-390
-[py3.10-image]: https://img.shields.io/badge/python-3.10-blue.svg
-[py3.10-link]: https://www.python.org/downloads/release/python-3100
-[py3.11-image]: https://img.shields.io/badge/python-3.11-blue.svg
-[py3.11-link]: https://www.python.org/downloads/release/python-3110
-[py3.12-image]: https://img.shields.io/badge/python-3.12-blue.svg
-[py3.12-link]: https://www.python.org/downloads/release/python-3120
-
+[py-image]: https://img.shields.io/badge/python-3.6-blue.svg
+[py-link]: https://www.python.org/download/releases/3.6.0
 [pypi-image]: https://img.shields.io/pypi/v/pyjellyfish.svg
 [pypi-link]: https://pypi.python.org/pypi/pyjellyfish

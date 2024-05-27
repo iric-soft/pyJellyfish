@@ -212,8 +212,6 @@ class JellyfishCommand(SuperCommand):
             )
 
             if found_patchelf:
-                # adding patchelf to setup_requires should always set this to
-                # True, and avoid having to run one of the next two commands
                 pass
 
             elif sys.prefix == sys.base_prefix:
@@ -436,7 +434,6 @@ metadata = dict(
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.6',
-    setup_requires=['pip', 'patchelf'],
     cmdclass={
         'jellyfish': JellyfishCommand,
         'build_py': BuildPyCommand,

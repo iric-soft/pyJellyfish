@@ -102,8 +102,8 @@ class JellyfishCommand(SuperCommand):
         )
 
         lib_path = os.path.abspath(
-            './jf/lib/python%s/site-packages'
-            % sys.version[:3]
+            './jf/lib/python%s.%s/site-packages'
+            % tuple(sys.version.split('.')[:2])
         )
 
         dir_name = 'jellyfish-%s' % self.version

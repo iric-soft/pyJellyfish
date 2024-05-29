@@ -10,8 +10,8 @@ from setuptools import Command, Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 from setuptools.command.develop import develop
-from setuptools.errors import OptionError
-from subprocess import check_output
+from setuptools.errors import OptionError, SetupError
+from subprocess import CalledProcessError, check_output
 
 
 def safe_extract_tarfile(tarball, destination):
@@ -35,6 +35,24 @@ def safe_extract_tarfile(tarball, destination):
             tar.extractall(path, members, numeric_owner=numeric_owner)
 
         safe_extract(tar, destination)
+
+
+def locate(pkg, extra_args=[]):
+    try:
+        output = check_output(extra_args + ['which', pkg], universal_newlines=True)
+        return os.path.abspath(output.strip())
+    except CalledProcessError:
+        return None
+
+
+def is_needed_patchelf():
+    if sys.platform == 'linux':
+        patchelf_executable = locate(
+            'patchelf',
+            ['env', 'PATH='+os.path.abspath('./jf/bin')+':'+os.environ['PATH']]
+        )
+        return not bool(patchelf_executable)
+    return False
 
 
 @contextmanager
@@ -115,23 +133,16 @@ class JellyfishCommand(SuperCommand):
         env_pkg_config_path = os.environ.get('PKG_CONFIG_PATH')
         _pkg_config_path = '%s/lib/pkgconfig:%s' % (prefix, env_pkg_config_path)
 
-        # from: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
+        patchelf_executable = locate(
+            'patchelf',
+            ['env', 'PATH='+os.path.abspath('./jf/bin')+':'+os.environ['PATH']]
+        )
+
         if sys.platform == 'linux':
-            try:
-                output = check_output(
-                    ['which', 'patchelf'], universal_newlines=True
-                )
-                patchelf_executable = os.path.abspath(output.strip())
-                self.announce('Found patchelf at {}'.format(output),
-                              level=INFO)
-                found_patchelf = True
-            except Exception:
-                self.announce('patchelf not found', level=INFO)
-                patchelf_executable = os.path.abspath('./jf/bin/patchelf')
-                found_patchelf = False
-        else:
-            patchelf_executable = None
-            found_patchelf = None
+            if patchelf_executable is None:
+                raise SetupError('No patchelf executable found or installed')
+            else:
+                self.announce('Found patchelf at ' + patchelf_executable, level=INFO)
 
         def get_ext_name():
             ext_path = glob(os.path.join(lib_path, '_dna_jellyfish*'))
@@ -203,59 +214,12 @@ class JellyfishCommand(SuperCommand):
         )
 
         if sys.platform == 'linux':
-            self.mkpath('jf/bin')
             self.mkpath('pyjellyfish/.libs')
 
             self.copy_file(
                 os.path.join('./jf/lib', get_lib_name()),
                 os.path.join('./pyjellyfish/.libs', get_lib_name())
             )
-
-            if found_patchelf:
-                pass
-
-            elif sys.prefix == sys.base_prefix:
-                # not in a virtual environment;
-                # a handy hack for installing bin and lib in a custom
-                # environment when not using venv (not recommended):
-                # https://stackoverflow.com/a/29103053/16653409
-
-                self.spawn(
-                    [
-                        'env',
-                        'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
-                        sys.executable, '-m', 'pip',
-                        'install',
-                        'patchelf',
-                        '--user',
-                        '--upgrade',
-                        '--no-cache-dir',
-                        '--force'
-                    ]
-                )
-
-            else:
-                # in a virtual environment;
-                # looks like there is no native way for pip to specify a target
-                # build directory: https://github.com/pypa/pip/issues/3934,
-                # defaulting to a simple mv command
-
-                self.spawn(
-                    [
-                        sys.executable, '-m', 'pip',
-                        'install',
-                        'patchelf',
-                        '--target', lib_path,
-                        '--upgrade',
-                        '--no-cache-dir',
-                        '--force'
-                    ]
-                )
-
-                self.move_file(
-                    os.path.join(lib_path, 'bin', 'patchelf'),
-                    './jf/bin/'
-                )
 
             self.spawn(
                 [
@@ -304,6 +268,69 @@ class JellyfishCommand(SuperCommand):
             '%s\nSuccessfully installed jellyfish\n%s' %('*'*40, '*'*40),
             level=INFO
         )
+
+
+class PatchElfCommand(SuperCommand):
+    """Custom command for detecting and installing patchelf"""
+
+    description = 'install patchelf with pip in the current build directory'
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        self.mkpath('jf/bin')
+
+        lib_path = os.path.abspath(
+            './jf/lib/python%s.%s/site-packages'
+            % tuple(sys.version.split('.')[:2])
+        )
+
+        if sys.prefix == sys.base_prefix:
+            # not in a virtual environment;
+            # a handy hack for installing bin and lib in a custom
+            # environment when not using venv (not recommended):
+            # https://stackoverflow.com/a/29103053/16653409
+
+            self.spawn(
+                [
+                    'env',
+                    'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
+                    sys.executable, '-m', 'pip',
+                    'install',
+                    'patchelf',
+                    '--user',
+                    '--upgrade',
+                    '--no-cache-dir',
+                    '--force'
+                ]
+            )
+
+        else:
+            # in a virtual environment;
+            # looks like there is no native way for pip to specify a target
+            # build directory: https://github.com/pypa/pip/issues/3934,
+            # defaulting to a simple mv command
+
+            self.spawn(
+                [
+                    sys.executable, '-m', 'pip',
+                    'install',
+                    'patchelf',
+                    '--target', lib_path,
+                    '--upgrade',
+                    '--no-cache-dir',
+                    '--force'
+                ]
+            )
+
+            self.move_file(
+                os.path.join(lib_path, 'bin', 'patchelf'),
+                './jf/bin/'
+            )
 
 
 class BuildExtCommand(build_ext):
@@ -368,11 +395,21 @@ class ClassFactory(object):
 
                 return True
 
-            def expand_sub_commands(self):
-                if self.add_sub_cmd not in self.sub_commands:
-                    self.sub_commands.insert(0, self.add_sub_cmd)
+            def has_absent_patchelf(self):
+                if self.has_absent_jellyfish():
+                    return is_needed_patchelf()
+                return False
 
-            add_sub_cmd = ('jellyfish', has_absent_jellyfish)
+            def expand_sub_commands(self):
+                for add_sub_cmd in self.add_sub_cmds:
+                    if add_sub_cmd not in self.sub_commands:
+                        self.sub_commands.insert(0, add_sub_cmd)
+
+            # order is important
+            add_sub_cmds = [
+                ('jellyfish', has_absent_jellyfish),
+                ('patchelf', has_absent_patchelf)
+            ]
 
         return CustomCommand
 
@@ -440,6 +477,7 @@ metadata = dict(
     setup_requires=['pip'],
     cmdclass={
         'jellyfish': JellyfishCommand,
+        'patchelf': PatchElfCommand,
         'build_py': BuildPyCommand,
         'build_ext': BuildExtCommand,
         'develop': DevelopCommand

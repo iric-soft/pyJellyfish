@@ -4,22 +4,29 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyjellyfish"
-requires-python = ">= 3.6"
+requires-python = ">= 3.8"
 authors = [
-  { name="Albert Feghaly", email="bioinformatique@iric.ca" },
+  { name="Albert Feghaly", email="albert.feghaly@umontreal.ca" },
 ]
-description = "A python wrapper around DNA k-kmer counter Jellfish"
-license = { text="BSD" }
-keywords = ["k-mer", "DNA"]
+description = "Python interface to the Jellfish DNA k-mer counter"
+license = { text="BSD-3-Clause" }
+keywords = ["k-mer", "DNA", "RNA"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
   "Intended Audience :: Healthcare Industry",
   "Topic :: Scientific/Engineering :: Bio-Informatics",
-  "Topic :: Software Development",
   "Topic :: Software Development :: Build Tools",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
   "License :: OSI Approved :: BSD License",
-  "Programming Language :: Python :: 3.6",
   "Natural Language :: English",
 ]
 dynamic = ["version", "readme"]

@@ -226,7 +226,7 @@ class JellyfishCommand(SuperCommand):
                         'PYTHONUSERBASE=%s' % os.path.abspath('./jf'),
                         sys.executable, '-m', 'pip',
                         'install',
-                        'patchelf-wrapper',
+                        'patchelf',
                         '--user',
                         '--upgrade',
                         '--no-cache-dir',
@@ -238,15 +238,13 @@ class JellyfishCommand(SuperCommand):
                 # in a virtual environment;
                 # looks like there is no native way for pip to specify a target
                 # build directory: https://github.com/pypa/pip/issues/3934,
-                # defaulting to a simple mv command (this is quite dirty and
-                # leaves artifcats such as $VIRTUAL_ENV/share/doc/patchelf and
-                # $VIRTUAL_ENV/share/man/man1/patchelf.1 which is not ideal)
+                # defaulting to a simple mv command
 
                 self.spawn(
                     [
                         sys.executable, '-m', 'pip',
                         'install',
-                        'patchelf-wrapper',
+                        'patchelf',
                         '--target', lib_path,
                         '--upgrade',
                         '--no-cache-dir',
@@ -255,7 +253,7 @@ class JellyfishCommand(SuperCommand):
                 )
 
                 self.move_file(
-                    os.path.join(os.path.dirname(sys.executable), 'patchelf'),
+                    os.path.join(lib_path, 'bin', 'patchelf'),
                     './jf/bin/'
                 )
 

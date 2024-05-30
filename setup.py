@@ -429,8 +429,13 @@ metadata = dict(
     license='BSD',
     classifiers=classifiers,
     keywords='k-mer DNA',
-    packages=['pyjellyfish', 'jf'],
-    package_data={'pyjellyfish': ['.*libs/*'], 'jf': ['pkgs/*']},
+    # https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+    # https://stackoverflow.com/a/58050701
+    # https://stackoverflow.com/a/54953494
+    packages=['pyjellyfish'],
+    package_data={'pyjellyfish': ['.*libs/*']},
+    include_package_data=True,
+    exclude_package_data={"jf": ["pkgs/*"]},
     ext_modules=[Extension("_dna_jellyfish", sources=[])],
     py_modules = ["dna_jellyfish"],
     python_requires='>=3.6',

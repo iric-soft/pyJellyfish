@@ -56,6 +56,25 @@ def is_needed_patchelf():
     return False
 
 
+def is_isolated_env():
+    # scenario: python -m pip install
+    try:
+        ppath = os.environ['PYTHONPATH']
+        if ':' not in ppath and '/pip-build-env-' in ppath:
+            return True
+    except KeyError:
+        pass
+
+    # scenario: python -m build
+    return sys.prefix.split('/')[-1].startswith('build-env-')
+
+
+def resolve_patchelf_dependency():
+    if is_needed_patchelf() and is_isolated_env():
+        return ['patchelf']
+    return []
+
+
 @contextmanager
 def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
     """From: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
@@ -458,6 +477,26 @@ class DevelopCommand(develop):
 
 if __name__ == '__main__':
     setup(
+        # If absent, setup_requires will install patchelf in the temporary
+        # build environment specified in the PEP517 build, but will be
+        # ignored with pip's --no-build-isolation / build's --no-isolation,
+        # thus defaulting to the patchelf custom command.
+        # Note that if setup_requires becomes deprecated, the solution
+        # would have to be one of the following:
+        #   a) add it as a requirement to pyproject.toml as
+        #      "patchelf; sys_platform == 'linux'" (with the
+        #      disadvantage of having to install it even when
+        #      present in the user's PATH)
+        #   b) to use exclusively the patchelf custom command,
+        #      which is less clean than having patchelf be
+        #      installed in the isolated build directory
+        #   c) to use `get_requires_for_build_wheel` as a hook
+        #      to dynamically specify build requirements (which
+        #      is what setup_requires uses to communicate
+        #      requirements to pip)
+        # For more info, read the "build-time-dependencies" section in:
+        # https://pip.pypa.io/en/stable/reference/build-system/pyproject-toml/
+        setup_requires = resolve_patchelf_dependency(),
         # listing the extension in ext_modules ensures that
         # self.distribution.has_ext_modules() returns True
         ext_modules = [Extension("_dna_jellyfish", sources=[])],

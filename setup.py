@@ -448,57 +448,15 @@ class DevelopCommand(develop):
     pass
 
 
-# Get the long description from the README file
-here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
-
-classifiers = [
-    'Development Status :: 5 - Production/Stable',
-
-    'Intended Audience :: Science/Research',
-    'Intended Audience :: Healthcare Industry',
-    'Topic :: Scientific/Engineering :: Bio-Informatics',
-    'Topic :: Software Development',
-    'Topic :: Software Development :: Build Tools',
-
-    'License :: OSI Approved :: BSD License',
-
-    'Programming Language :: Python :: 3.8',
-
-    'Natural Language :: English',
-]
-
-metadata = dict(
-    name='pyjellyfish',
-    version='1.2.0',
-    description='A python wrapper around DNA k-kmer counter Jellfish',
-    long_description=long_description,
-    url='https://github.com/iric-soft/pyJellyfish',
-    author='Albert Feghaly',
-    author_email='bioinformatique@iric.ca',
-    license='BSD',
-    classifiers=classifiers,
-    keywords='k-mer DNA',
-    # https://setuptools.pypa.io/en/latest/userguide/datafiles.html
-    # https://stackoverflow.com/a/58050701
-    # https://stackoverflow.com/a/54953494
-    packages=['pyjellyfish'],
-    package_data={'pyjellyfish': ['.*libs/*']},
-    include_package_data=True,
-    exclude_package_data={"jf": ["pkgs/*"]},
-    ext_modules=[Extension("_dna_jellyfish", sources=[])],
-    py_modules = ["dna_jellyfish"],
-    python_requires='>=3.6',
-    cmdclass={
-        'jellyfish': JellyfishCommand,
-        'patchelf': PatchElfCommand,
-        'build_py': BuildPyCommand,
-        'build_ext': BuildExtCommand,
-        'develop': DevelopCommand,
-        'bdist_wheel': BDistWheelCommand
-    }
-)
-
 if __name__ == '__main__':
-    setup(**metadata)
+    setup(
+        ext_modules = [Extension("_dna_jellyfish", sources=[])],
+        cmdclass = {
+            'jellyfish': JellyfishCommand,
+            'patchelf': PatchElfCommand,
+            'build_py': BuildPyCommand,
+            'build_ext': BuildExtCommand,
+            'develop': DevelopCommand,
+            'bdist_wheel': BDistWheelCommand
+        }
+    )

@@ -75,6 +75,16 @@ def resolve_patchelf_dependency():
     return []
 
 
+def check_dependencies(dependencies):
+    executables = [locate(dep) for dep in dependencies]
+    absent = [dep for dep, ex in zip(dependencies, executables) if ex is None]
+    if absent:
+        raise SetupError(
+                'cannot locate the following dependencies needed for building: ' +\
+                ', '.join(absent)
+        )
+
+
 @contextmanager
 def pushd(dirname, makedirs=False, mode=0o777, exist_ok=False):
     """From: https://github.com/jimporter/patchelf-wrapper/blob/master/setup.py
@@ -409,9 +419,15 @@ class ClassFactory(object):
 
             def run(self):
                 self.expand_sub_commands()
-                for cmd_name in self.get_sub_commands():
+                cmds_to_run = self.get_sub_commands()
+
+                if sys.platform == 'darwin' and 'jellyfish' in cmds_to_run:
+                    check_dependencies(['pkg-config', 'install_name_tool'])
+
+                for cmd_name in cmds_to_run:
                     self.announce('Running %s' % cmd_name, level=INFO)
                     self.run_command(cmd_name)
+
                 super(CustomCommand, self).run()
 
             def has_absent_jellyfish(self):

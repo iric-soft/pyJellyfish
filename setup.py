@@ -104,6 +104,8 @@ class JellyfishCommand(SuperCommand):
 
     def finalize_options(self):
         self.set_undefined_options('bdist_wheel', ('jf_version', 'version'))
+        # Jellyfish v2.3.1 has a merged PR that breaks compilation in setup.py:
+        # https://github.com/gmarcais/Jellyfish/pull/169
         if self.version:
             if self.version not in  ['2.2.10', '2.3.0']:
                 raise OptionError(
@@ -198,6 +200,8 @@ class JellyfishCommand(SuperCommand):
                 'install',
                 '.',
                 '--target', lib_path,
+                '--use-pep517',
+                '--verbose',
                 '--upgrade'
             ],
             cwd=os.path.join(build_dir, dir_name, 'swig', 'python')
@@ -305,6 +309,7 @@ class PatchElfCommand(SuperCommand):
                     '--user',
                     '--upgrade',
                     '--no-cache-dir',
+                    '--verbose',
                     '--force'
                 ]
             )
@@ -323,6 +328,7 @@ class PatchElfCommand(SuperCommand):
                     '--target', lib_path,
                     '--upgrade',
                     '--no-cache-dir',
+                    '--verbose',
                     '--force'
                 ]
             )
@@ -385,6 +391,7 @@ class ClassFactory(object):
             def run(self):
                 self.expand_sub_commands()
                 for cmd_name in self.get_sub_commands():
+                    self.announce('Running %s' % cmd_name, level=INFO)
                     self.run_command(cmd_name)
                 super(CustomCommand, self).run()
 
@@ -432,6 +439,7 @@ class ClassFactory(object):
 
 factory = ClassFactory()
 
+
 def create_command_class(klass):
     return factory(*klass.__bases__)
 
@@ -450,7 +458,10 @@ class DevelopCommand(develop):
 
 if __name__ == '__main__':
     setup(
+        # listing the extension in ext_modules ensures that
+        # self.distribution.has_ext_modules() returns True
         ext_modules = [Extension("_dna_jellyfish", sources=[])],
+        # custom commands used in this build
         cmdclass = {
             'jellyfish': JellyfishCommand,
             'patchelf': PatchElfCommand,

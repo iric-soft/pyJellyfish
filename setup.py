@@ -279,7 +279,7 @@ class JellyfishCommand(SuperCommand):
                         'python%s.%s' % tuple(sys.version.split('.')[:2]),
                         'site-packages/pyjellyfish/.libs',
                     ),
-                    'bin/jellyfish'
+                    './bin/jellyfish'
                 ]
             )
 
@@ -305,17 +305,32 @@ class JellyfishCommand(SuperCommand):
                 ]
             )
 
-            # this command doesn't seem to be essential, as per this answer:
-            # https://stackoverflow.com/a/35220218/16653409, but is kept just
-            # because it was being run by delocate
             self.spawn(
                 [
                     'install_name_tool',
-                    '-id',
-                    os.path.join('/DLC/pyjellyfish/.dylibs', get_lib_name()),
-                    os.path.join('./pyjellyfish/.dylibs', get_lib_name())
+                    '-change',
+                    os.path.abspath(os.path.join('./jf/lib', get_lib_name())),
+                    os.path.join(
+                        '@loader_path/../lib',
+                        'python%s.%s' % tuple(sys.version.split('.')[:2]),
+                        'site-packages/pyjellyfish/.dylibs',
+                        get_lib_name()
+                    ),
+                    './bin/jellyfish'
                 ]
             )
+
+            # this command doesn't seem to be essential, as per this answer:
+            # https://stackoverflow.com/a/35220218/16653409, but it is run by
+            # delocate
+            #self.spawn(
+            #    [
+            #        'install_name_tool',
+            #        '-id',
+            #        os.path.join('/DLC/pyjellyfish/.dylibs', get_lib_name()),
+            #        os.path.join('./pyjellyfish/.dylibs', get_lib_name())
+            #    ]
+            #)
 
         self.announce(
             '%s\nSuccessfully installed jellyfish\n%s' %('*'*40, '*'*40),

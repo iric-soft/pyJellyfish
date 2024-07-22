@@ -4,6 +4,9 @@ import os
 import sys
 import tarfile
 from contextlib import contextmanager
+from distutils.command.build_scripts import build_scripts
+from distutils._modified import newer
+from distutils.util import convert_path
 from glob import glob
 from logging import INFO
 from setuptools import Command, Extension, find_packages, setup
@@ -246,6 +249,10 @@ class JellyfishCommand(SuperCommand):
             os.path.join('.', get_ext_name())
         )
 
+        self.mkpath('./bin')
+
+        self.copy_file('./jf/bin/jellyfish', './bin/jellyfish')
+
         if sys.platform == 'linux':
             self.mkpath('pyjellyfish/.libs')
 
@@ -260,6 +267,19 @@ class JellyfishCommand(SuperCommand):
                     '--set-rpath',
                     '$ORIGIN/pyjellyfish/.libs',
                     get_ext_name()
+                ]
+            )
+
+            self.spawn(
+                [
+                    patchelf_executable,
+                    '--set-rpath',
+                    os.path.join(
+                        '$ORIGIN/../lib',
+                        'python%s.%s' % tuple(sys.version.split('.')[:2]),
+                        'site-packages/pyjellyfish/.libs',
+                    ),
+                    'bin/jellyfish'
                 ]
             )
 
@@ -380,6 +400,23 @@ class BDistWheelCommand(bdist_wheel):
     def initialize_options(self):
         super().initialize_options()
         self.jf_version = None
+
+
+class BuildScriptsCommand(build_scripts):
+    """Custom BuildScripts command for skipping failing shebang parsing."""
+
+    def _copy_script(self, script, outfiles, updated_files):
+        script = convert_path(script)
+        outfile = os.path.join(self.build_dir, os.path.basename(script))
+        outfiles.append(outfile)
+
+        if not self.force and not newer(script, outfile):
+            log.debug("not copying %s (up-to-date)", script)
+            return
+
+        updated_files.append(outfile)
+
+        self.copy_file(script, outfile)
 
 
 class BuildExtCommand(build_ext):
@@ -517,12 +554,14 @@ if __name__ == '__main__':
         # self.distribution.has_ext_modules() returns True
         ext_modules = [Extension("_dna_jellyfish", sources=[])],
         # custom commands used in this build
+        scripts = ["bin/jellyfish"],
         cmdclass = {
             'jellyfish': JellyfishCommand,
             'patchelf': PatchElfCommand,
             'build_py': BuildPyCommand,
             'build_ext': BuildExtCommand,
             'develop': DevelopCommand,
+            'build_scripts': BuildScriptsCommand,
             'bdist_wheel': BDistWheelCommand
         }
     )
